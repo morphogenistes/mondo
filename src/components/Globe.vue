@@ -58,7 +58,7 @@ export default {
       const container = this.$refs.glview;
       const { clientWidth: width, clientHeight: height } = container;
 
-      this.pointer = new Vector2();
+      this.pointer = new Vector2(-1, -1);
       this.raycaster = new Raycaster();
 
       container.addEventListener('pointermove', e => {
@@ -87,16 +87,16 @@ export default {
       }));
 
       this.myGlobe = new ThreeGlobe()
-        .globeImageUrl('src/assets/lroc_color_poles_1k.jpg')
+        .globeImageUrl('src/assets/textures/lroc_color_poles_1k.jpg')
         .showAtmosphere(false)
-        // .globeImageUrl('src/assets/mercurymap.jpg')
-        // .bumpImageUrl('src/assets/mercurybump.jpg')
-        // .globeImageUrl('src/assets/venusmap.jpg')
-        // .bumpImageUrl('src/assets/venusbump.jpg')
-        // .globeImageUrl('src/assets/mars_1k_color.jpg')
-        // .bumpImageUrl('src/assets/mars_1k_topo.jpg')
-        // .globeImageUrl('src/assets/jupitermap.jpg');
-        // .globeImageUrl('src/assets/neptunemap.jpg');
+        // .globeImageUrl('src/assets/textures/mercurymap.jpg')
+        // .bumpImageUrl('src/assets/textures/mercurybump.jpg')
+        // .globeImageUrl('src/assets/textures/venusmap.jpg')
+        // .bumpImageUrl('src/assets/textures/venusbump.jpg')
+        // .globeImageUrl('src/assets/textures/mars_1k_color.jpg')
+        // .bumpImageUrl('src/assets/textures/mars_1k_topo.jpg')
+        // .globeImageUrl('src/assets/textures/jupitermap.jpg');
+        // .globeImageUrl('src/assets/textures/neptunemap.jpg');
         // .arcsData(arcsData)
         // .arcColor('color')
         // .arcDashLength(0.4)
@@ -125,7 +125,7 @@ export default {
 
       const light = new DirectionalLight(0xffffff, 3);
       // const light = new SpotLight(0xffffff, 3, 1000, Math.PI, 1, 0);
-      // light.map = new TextureLoader().load('src/assets/mars_1k_color.jpg');
+      // light.map = new TextureLoader().load('src/assets/textures/mars_1k_color.jpg');
       // const light = new PointLight(0xffffff, 1, 500, 2);
       light.castShadow = true;
       light.angle = 5;
@@ -156,7 +156,7 @@ export default {
 
       // ACTUAL OBJECTS ////////////////////////////////////////////////////////
 
-      const shadowTexture = new TextureLoader().load('src/assets/roundshadow.png');
+      const shadowTexture = new TextureLoader().load('src/assets/textures/roundshadow.png');
       const planeSize = 200;
       const shadowGeo = new PlaneGeometry(planeSize, planeSize);
       const shadowMat = new MeshBasicMaterial({
@@ -174,15 +174,15 @@ export default {
       this.shadowMesh.scale.set(shadowSize, shadowSize, shadowSize);
       this.scene.add(this.shadowMesh);
 
-      const texture = new TextureLoader().load('src/assets/starmap_2020_4k_print.jpg');
-      // const texture = new TextureLoader().load('src/assets/night-sky.png');
+      const texture = new TextureLoader().load('src/assets/textures/starmap_2020_4k_print.jpg');
+      // const texture = new TextureLoader().load('src/assets/textures/night-sky.png');
       const skyBoxGeometry = new SphereGeometry(10000, 6, 6);
       // const material = new MeshBasicMaterial({ map: texture, side: BackSide });
       const skyBoxMaterial = new MeshStandardMaterial({ map: texture, side: BackSide, color: '#fff' });
       this.skyBox = new Mesh(skyBoxGeometry, skyBoxMaterial);
       // this.scene.add(this.mesh);
 
-      const sphereTexture = new TextureLoader().load('src/assets/lroc_color_poles_1k.jpg');
+      const sphereTexture = new TextureLoader().load('src/assets/textures/lroc_color_poles_1k.jpg');
       const sphereGeometry = new SphereGeometry(99, 30, 30);
       const sphereMaterial = new MeshStandardMaterial({
         map: sphereTexture,
