@@ -12,15 +12,20 @@ import {
   CameraHelper,
   PerspectiveCamera,
   Scene,
+  BufferGeometry,
   BoxGeometry,
   PlaneGeometry,
   SphereGeometry,
-  Matrix4,
   Vector2,
+  Vector3,
+  Matrix4,
+  Quaternion,
+  LineBasicMaterial,
   MeshBasicMaterial,
   MeshStandardMaterial,
   MeshLambertMaterial,
   MeshPhongMaterial,
+  Line,
   Mesh,
   PCFSoftShadowMap,
   Raycaster,
@@ -32,6 +37,8 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { TrackballControls } from "three/examples/jsm/controls/TrackballControls";
 import { ArcballControls } from "three/examples/jsm/controls/ArcballControls";
 import ThreeGlobe from 'three-globe';
+import versor from '../utils/versor.js';
+import Filter from '../utils/filter.js';
 </script>
 
 <template>
@@ -59,13 +66,43 @@ export default {
       const { clientWidth: width, clientHeight: height } = container;
 
       this.pointer = new Vector2(-1, -1);
+      this.pointerDown = false;
+      this.firstPointerDown = false;
       this.raycaster = new Raycaster();
+      this.filter = new Filter(3);
+      this.filter.setAlpha(0.95);
+      this.lastPointerPosition = new Vector3(0,0,0);
+      this.v0 = [0,0,0];    // Mouse position in Cartesian coordinates at start of drag gesture.
+      this.r0 = [0,0,0];    // Projection rotation as Euler angles at start.
+      this.q0 = [0,0,0,0];  // Projection rotation as versor at start.
+
+      const pointerGeo = new SphereGeometry(6, 6, 6);
+      const pointerMat = new MeshBasicMaterial({ transparent: true, color: '#f00' });
+      this.pointerDisplay = new Mesh(pointerGeo, pointerMat);
+
+      const lineMat = new LineBasicMaterial( { color: 0x0000ff } );
+      const linePts = [];
+      linePts.push(new Vector3(0,0,0));
+      linePts.push(new Vector3(0,0,0));
+      const lineGeo = new BufferGeometry().setFromPoints(linePts);
+      this.lineMesh = new Line(lineGeo, lineMat);
 
       container.addEventListener('pointermove', e => {
         const { pointerType, pressure } = e;
         this.pointer.x = e.offsetX / width * 2 - 1;
         this.pointer.y = -e.offsetY / height * 2 + 1;
         // console.log(this.pointer);
+      });
+
+      container.addEventListener('pointerdown', e => {
+        this.pointerDisplay.material.color.setHex(0xff0000);
+        this.pointerDown = true;
+        this.firstPointerDown = true;
+      });
+
+      container.addEventListener('pointerup', e => {
+        this.pointerDisplay.material.color.setHex(0x00ff00);
+        this.pointerDown = false;
       });
 
       this.renderer = new WebGLRenderer({ antialias: true });
@@ -75,6 +112,8 @@ export default {
       this.renderer.shadowMap.enabled = true;
       this.renderer.shadowMap.type = PCFSoftShadowMap;
       // this.renderer.shadowMap.renderSingleSided = false;
+
+      // THE THREE-GLOBE ! /////////////////////////////////////////////////////
 
       const N = 20;
 
@@ -119,6 +158,9 @@ export default {
       // this.subScene.add(this.myGlobe);
       this.scene.add(this.subScene);
 
+      this.scene.add(this.pointerDisplay);
+      this.scene.add(this.lineMesh);
+
       // LIGHTING //////////////////////////////////////////////////////////////
 
       this.scene.add(new AmbientLight(0x999999, Math.PI));
@@ -132,7 +174,7 @@ export default {
       light.penumbra = 1.15;
       light.distance = 0;
 
-      light.position.set(0, 2000, 0);
+      light.position.set(0, 1000, 0);
       light.target.position.set(0, -100, 0);
       this.scene.add(light);
       this.scene.add(light.target);
@@ -182,17 +224,25 @@ export default {
       this.skyBox = new Mesh(skyBoxGeometry, skyBoxMaterial);
       // this.scene.add(this.mesh);
 
-      const sphereTexture = new TextureLoader().load('src/assets/textures/lroc_color_poles_1k.jpg');
+      const sphereTexture = new TextureLoader().load(
+        'src/assets/textures/lroc_color_poles_1k.jpg'
+        // 'src/assets/textures/planetpixelemporium/earthmap1k.jpg'
+      );
+      const sphereBump = new TextureLoader().load(
+        'src/assets/textures/planetpixelemporium/earthbump1k.jpg'
+      );
       const sphereGeometry = new SphereGeometry(99, 30, 30);
-      const sphereMaterial = new MeshStandardMaterial({
+      const sphereMaterial = new MeshPhongMaterial({
         map: sphereTexture,
+        // bumpMap: sphereBump,
+        // bumpScale: 0.15,
         side: FrontSide,
         color: '#fff',
         wireframe: false
       });
       this.sphere = new Mesh(sphereGeometry, sphereMaterial);
-      // mesh.castShadow = true;
-      // mesh.receiveShadow = true;
+      this.sphere.castShadow = true;
+      this.sphere.receiveShadow = true;
       this.scene.add(this.sphere);
 
       const planeGeometry = new PlaneGeometry(1500, 1500, 10);
@@ -204,11 +254,13 @@ export default {
       plane.rotateX(Math.PI * 0.5);
       // this.scene.add(plane);
 
-      // Setup camera
+      // CAMERAS ///////////////////////////////////////////////////////////////
+
       this.camera = new PerspectiveCamera();
       this.camera.aspect = width / height;
       this.camera.far = 100000;
-      this.camera.position.z = 500;
+      this.camera.position.y = -30;
+      this.camera.position.z = 400;
       this.camera.updateProjectionMatrix();
       this.scene.add(this.camera);
 
@@ -262,15 +314,84 @@ export default {
       // this.sphere.rotation.y = -this.dummyCam.rotation.y;
       // this.sphere.rotation.z = -this.dummyCam.rotation.z;
 
-      this.raycaster.setFromCamera(this.pointer, this.camera);
-      const intersects = this.raycaster.intersectObjects(this.scene.children);
+      if (this.pointerDown) {
+        this.raycaster.setFromCamera(this.pointer, this.camera);
+        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
 
-      if (intersects.length > 0) {
-        console.log(intersects[0]);
+        if (intersects.length > 0) {
+          for (let i = 0; i < intersects.length; ++i) {
+            if (intersects[i].object.uuid == this.sphere.uuid) {
+              // console.log(intersects[i]);
+              this.pointerDisplay.material.opacity = 1;
+              const { x, y, z } = intersects[i].point;
+              // const newPosition = new Vector3().fromArray(this.filter.process([x, y, z]));
+              const newPosition = new Vector3().fromArray([x, y, z]);
+
+              if (this.firstPointerDown) {
+                //this.dragStarted(newPosition);
+                this.firstPointerDown = false;
+                this.firstPointerPosition = newPosition;
+                this.lastPointerPosition = newPosition;
+              } else {
+                //this.dragged(newPosition);
+                if (newPosition.distanceTo(this.lastPointerPosition) > 0)
+                {
+                  const axis = new Vector3().crossVectors(
+                    // this.firstPointerPosition,
+                    this.lastPointerPosition,
+                    newPosition
+                  ).normalize();
+
+                  // const angle = newPosition.angleTo(this.firstPointerPosition);
+                  // const angle = newPosition.angleTo(this.lastPointerPosition);
+                  const angle = this.lastPointerPosition.angleTo(newPosition);
+
+                  // this.lineMesh.geometry.setFromPoints([
+                  //   new Vector3().copy(axis).multiplyScalar(200),
+                  //   new Vector3().copy(axis).multiplyScalar(-200),
+                  // ]);
+
+                  const q = new Quaternion();
+                  q.setFromAxisAngle(axis, angle);
+
+                  // q.multiply(this.sphere.quaternion);
+                  // this.sphere.setRotationFromQuaternion(q);
+                  this.sphere.quaternion.multiply(q);
+                }
+              }
+
+              this.lastPointerPosition = newPosition;
+              this.pointerDisplay.position.set(x, y, z);
+              // this.pointerDisplay.position.x = newPosition.x;
+              // this.pointerDisplay.position.y = newPosition.y;
+              // this.pointerDisplay.position.z = newPosition.z;
+              break;
+            }
+          }
+        } else {
+          this.pointerDisplay.material.opacity = 0;
+        }
+      } else {
+        this.pointerDisplay.material.opacity = 0;
       }
-
       // this.helper.update();
       this.renderer.render(this.scene, this.camera);
+    },
+    dragStarted(newPosition) {
+      // this.lastPointerPosition = newPosition;
+      this.v0 = newPosition; // versor.cartesian(projection.invert(d3.mouse(this)));
+      // this.r0 = [0,0,0] // ?? // projection.rotate();
+      this.q0 = versor(this.r0);
+    },
+    dragged(newPosition) {
+      const v1 = newPosition, // versor.cartesian(projection.rotate(r0).invert(d3.mouse(this))),
+            q1 = versor.multiply(this.q0, versor.delta(this.v0, v1)),
+            r1 = versor.rotation(q1);
+            this.r0 = versor.rotation(q1);
+      // projection.rotate(r1);
+      const q = new Quaternion(-q1[2], q1[1], q1[3], q1[0]);
+      this.sphere.setRotationFromQuaternion(q);
+      console.log(q);
     },
   },
 };
