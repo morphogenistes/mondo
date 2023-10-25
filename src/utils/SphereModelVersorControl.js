@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { Vector2, Vector3, Raycaster } from 'three';
+import { Vector2, Vector3, Quaternion, Raycaster } from 'three';
 
 class SphereModelVersorControl extends EventEmitter {
 
@@ -18,88 +18,154 @@ class SphereModelVersorControl extends EventEmitter {
     this.sphere = sphere;
 
     this.pointer = new Vector2(-1, -1);
-    this.pointerDown = false;
-    // this.firstPointerDown = false;
-    this.startedDragging = false;
+    this.pointerIsDown = false;
+    this.pointerIsOver = false; // pointer can be down but lose focus
     this.raycaster = new Raycaster();
     // this.filter = new Filter(3);
     // this.filter.setAlpha(0.95);
     this.lastPointerPosition = new Vector3(0,0,0);
+    this.lastDragDate = 0;
+    this.lastUpdateDate = 0;
+    this.axis = new Vector3(0,1,0);
+    this.angle = 0;
+    this.dt = 0;
+    this.angularSpeed = 0;
 
-    this.friction = 0; // 0 : no friction, 1 : infinite friction
+    this.friction = 0.25; // 0 : no friction, 1 : infinite friction
 
-
-    // this.registerEventListeners();
-    this.container.addEventListener('pointermove', this.onPointerMove);
-    this.container.addEventListener('pointerdown', this.onPointerDown);
-    this.container.addEventListener('pointerUp', this.onPointerUp);
+    this.container.addEventListener('pointermove', this.onPointerMove.bind(this));
+    this.container.addEventListener('pointerdown', this.onPointerDown.bind(this));
+    this.container.addEventListener('pointerup', this.onPointerUp.bind(this));
   }
 
-  // registerEventListeners() {
-  //   container.addEventListener('pointermove', e => {
-  //     this.onPointerMove(e);
-  //   });
-
-  //   container.addEventListener('pointerdown', e => {
-  //     this.onPointerDown(e);
-  //   });
-
-  //   container.addEventListener('pointerup', e => {
-  //     this.onPointerUp(e);
-  //   });
-  // }
-
-  // EVENT LISTENERS ///////////////////////////////////////////////////////////
-
-  onPointerMove(e) {
-    const { pointerType, pressure } = e;
+  getPointerPosition(e) {
+    // const { pointerType, pressure } = e;
     this.pointer.x = e.offsetX / this.width * 2 - 1;
     this.pointer.y = -e.offsetY / this.height * 2 + 1;
-    
-    if (this.pointerIsDown) {
-      let newPosition = null;
-      this.raycaster.setFromCamera(this.pointer, this.camera);
-      const intersects = this.raycaster.intersectObjects(this.scene.children, true);
-      
-      for (let i = 0; i < intersects.length; ++i) {
-        if (intersects[i].object.uuid == this.sphere.uuid) {
-          // WE ARE OVER THE SPHERE
-          newPosition = intersects[i].point;
-          break;
+
+    let newPosition = null;
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+
+    for (let i = 0; i < intersects.length; ++i) {
+      if (intersects[i].object.uuid === this.sphere.uuid) {
+        return intersects[i].point;
+      }
+    }
+
+    return null;
+  }
+
+  // SYNTHETIC EVENT LISTENERS /////////////////////////////////////////////////
+
+  onStartDrag(newPosition) {
+    this.lastDragDate = Date.now();
+    this.lastPointerPosition = newPosition;
+    this.angle = 0;
+    this.dt = 0;
+    this.emit('start', newPosition);
+  }
+
+  onDrag(newPosition) {
+    if (newPosition.distanceTo(this.lastPointerPosition) > 0.001) {
+      const now = Date.now();
+      this.dt = (now - this.lastDragDate) * 0.001;
+      this.lastDragDate = now;
+
+      this.axis = new Vector3().crossVectors(
+        this.lastPointerPosition,
+        newPosition
+      ).normalize();
+  
+      this.angle = this.lastPointerPosition.angleTo(newPosition);
+
+      const q = new Quaternion().setFromAxisAngle(this.axis, this.angle);
+      q.multiply(this.sphere.quaternion);
+      this.sphere.setRotationFromQuaternion(q);
+      this.lastPointerPosition = newPosition;
+      this.emit('move', newPosition);
+    }
+  }
+
+  onEndDrag(updateDate) {
+    if (updateDate) {
+      const now = Date.now();
+      this.dt = (now - this.lastUpdateDate) * 0.001;
+      this.lastUpdateDate = now;
+    }
+    this.angularSpeed = this.angle / this.dt; // we get the angular speed in rad.s-1
+    this.emit('end');
+  }
+
+  // REAL EVENT LISTENERS //////////////////////////////////////////////////////
+
+  onPointerMove(e) {
+    const newPosition = this.getPointerPosition(e);
+
+    if (newPosition !== null) {
+      if (!this.pointerIsOver) {
+        this.pointerIsOver = true;
+        if (this.pointerIsDown) {
+          this.onStartDrag(newPosition);
+        }
+      } else {
+        if (this.pointerIsDown) {
+          this.onDrag(newPosition);
         }
       }
-
-      if (newPosition !== null) {
-        // newPosition is a Vector3, do the regular drag stuff
-      } else {
-        // we must determine if we let the inertia roll
-        // or if we use a vector perpendicular to z, with an angle determined
-        // by the polar coordinates on x,y and a norm of the sphere's radius
-        // we could this.emit('leave', clippedVector);
+    } else {
+      if (this.pointerIsOver) {
+        this.pointerIsOver = false;
+        if (this.pointerIsDown) {
+          // uncomment to allow inertia when hovering out
+          this.onEndDrag(true);
+        }
       }
-
-      if (!this.startedDragging) {
-        this.startedDragging = true;
-      }  
     }
   }
 
   onPointerDown(e) {
-    // this.pointerDisplay.material.color.setHex(0xff0000);
+    // use this to forbid more than 1 touch event
+    // console.log(e.pointerId);
     this.pointerIsDown = true;
-    this.startedDragging = false;
+    const newPosition = this.getPointerPosition(e);
+
+    if (newPosition !== null) {
+      this.pointerIsOver = true;
+      this.onStartDrag(newPosition);
+    }
   }
 
   onPointerUp(e) {
-    // this.pointerDisplay.material.color.setHex(0x00ff00);
     this.pointerIsDown = false;
-    this.startedDragging = false;
+    const newPosition = this.getPointerPosition(e);
+
+    if (this.pointerIsOver) {
+      this.onEndDrag(false);
+    }
   }
 
   // UPDATE LOGIC //////////////////////////////////////////////////////////////
 
   update() {
+    const now = Date.now();
 
+    if (this.pointerIsDown && this.pointerIsOver) {
+      // we're dragging, do nothing here
+    } else {
+      if (this.angularSpeed > 0.001) {
+        this.dt = (now - this.lastUpdateDate) * 0.001;
+        this.angularSpeed -= (this.angularSpeed * this.friction);
+        const deltaAngle = this.angularSpeed * this.dt;
+        const q = new Quaternion().setFromAxisAngle(this.axis, deltaAngle);
+        q.multiply(this.sphere.quaternion);
+        this.sphere.setRotationFromQuaternion(q);
+      } else {
+        this.angularSpeed = 0;
+      }
+    }
+
+    this.lastUpdateDate = now;
   }
 };
 

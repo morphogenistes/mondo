@@ -11,6 +11,7 @@
     "test:e2e:dev": "start-server-and-test 'vite dev --port 4173' http://localhost:4173 'cypress open --e2e'"
   },
   "dependencies": {
+    "events": "^3.3.0",
     "pinia": "^2.1.6",
     "three-globe": "^2.29.3",
     "troisjs": "^0.3.4",
