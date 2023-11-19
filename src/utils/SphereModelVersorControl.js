@@ -31,7 +31,7 @@ class SphereModelVersorControl extends EventEmitter {
     this.dt = 0;
     this.angularSpeed = 0;
 
-    this.friction = 0.25; // 0 : no friction, 1 : infinite friction
+    this.friction = 0.05; // 0 : no friction, 1 : infinite friction
 
     this.container.addEventListener('pointermove', this.onPointerMove.bind(this));
     this.container.addEventListener('pointerdown', this.onPointerDown.bind(this));
