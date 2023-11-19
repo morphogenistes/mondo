@@ -70,48 +70,102 @@ export default {
       // scene: null,
     }
   },
-  mounted() {
-    this.init();
+  async mounted() {
+    await this.init();
     this.animate();
   },
   methods: {
-    init() {
+    async init() {
       // this + buffergeometries should be enough to draw the polygons
       const longLatToVector = (long, lat) => {
         const theta = long * Math.PI / 180;
         const phi = lat * Math.PI / 180;
-        const x = Math.sin(theta) * Math.cos(phi);
-        const y = Math.sin(theta) * Math.sin(phi);
-        const z = Math.cos(theta);
+        const x = -Math.sin(theta) * Math.cos(phi);
+        const z = -Math.sin(theta) * Math.sin(phi);
+        const y = -Math.cos(theta);
         return [ x, y, z ];
       };
 
       // read shapefiles from natural earth data
-      shapefile.open(
+      const source = await shapefile.open(
         'src/assets/ne_10m_land/ne_10m_land.shp',
         'src/assets/ne_10m_land/ne_10m_land.dbf',
-      )
-      .then(
-        source => source.read()
-        .then(function log(result) {
-          if (result.done) return;
-          return source.read().then(log);
-        }))
-      .catch(error => console.error(error.stack));
+      );
+
+      let geometry = [];
+      // let subPoly = [];
+
+      while (true) {
+        const result = await source.read();
+        if (result.done) break;
+        if (result.value.properties.scalerank === 3) {
+          console.log(result.value);
+          geometry = result.value.geometry.coordinates;
+          // subPoly = result.value.geometry.coordinates[0][0];
+          // console.log(geometry);
+          break;
+        }
+      }
 
       const positions = [];
       const normals = [];
       const uvs = [];
 
-      const zeGeo = new BufferGeometry();
-      zeGeo.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
-      zeGeo.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3));
-      // can use color instead of uv ?
-      zeGeo.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2));
+      const points = [];
+      const zeMeshes = [];
 
-      const zeMat = new MeshBasicMaterial({ color: '#f00' });
-      const zeMesh = new Mesh(zeGeo, zeMat);
-      // zeMesh.geometryBuffer
+      geometry.forEach(poly => {
+        poly.forEach(subPoly => {
+          subPoly.forEach(pair => {
+            const [ long, lat ] = pair;
+            const [ x, y, z ] = longLatToVector(long, lat);
+            // console.log(long, lat);
+
+            positions.push(x * 100);
+            positions.push(y * 100);
+            positions.push(z * 100);
+
+            const borderGeo = new SphereGeometry(2, 2, 2);
+            const borderMat = new MeshBasicMaterial({ transparent: false, color: '#f00' });
+            const borderMesh = new Mesh(borderGeo, borderMat);
+            borderMesh.position.set(x * 100, y * 100, z * 100);
+            points.push(borderMesh);
+
+            normals.push(x);
+            normals.push(y);
+            normals.push(z);
+
+            uvs.push(1);
+            uvs.push(1);
+          });
+
+          const zeGeo = new BufferGeometry();
+          zeGeo.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+          zeGeo.setAttribute('normal', new BufferAttribute(new Float32Array(normals), 3));
+          // can use color instead of uv ?
+          zeGeo.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2));
+
+          const zeMat = new MeshBasicMaterial({ color: '#f00' });
+          const zeMesh = new Mesh(zeGeo, zeMat);
+          zeMeshes.push(zeMesh);
+        });
+      });
+
+      // shapefile.open(
+      //   'src/assets/ne_10m_land/ne_10m_land.shp',
+      //   'src/assets/ne_10m_land/ne_10m_land.dbf',
+      // )
+      // .then(
+      //   source => source.read()
+      //   .then(function log(result) {
+      //     console.log(result);
+      //     if (result.done) return;
+      //     if (result.value.properties.scalerank === 0) {
+      //       return
+      //     }
+      //     return source.read().then(log);
+      //   }))
+      // .catch(error => console.error(error.stack));
 
       const container = this.$refs.glview;
       const { clientWidth: width, clientHeight: height } = container;
@@ -268,6 +322,16 @@ export default {
       // this.sphere.add(this.clouds);
       this.scene.add(this.sphere);
 
+      // this.sphere.add(zeMesh);
+      points.forEach(p => {
+        // console.log(p);
+        this.sphere.add(p);
+      });
+
+      zeMeshes.forEach(mesh => {
+        // this.sphere.add(mesh);
+      })
+
       // this one is way too heavy !
       // => use some low-poly resources
 
@@ -303,6 +367,8 @@ export default {
       // plane.position.set(0, -200, 0);
       // plane.rotateX(Math.PI * 0.5);
       // // this.scene.add(plane);
+
+      // this.sphere.add(zeMesh);
 
       // CAMERAS ///////////////////////////////////////////////////////////////
 
