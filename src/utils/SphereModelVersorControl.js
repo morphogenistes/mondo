@@ -53,6 +53,21 @@ class SphereModelVersorControl extends EventEmitter {
       }
     }
 
+    const { x, y } = this.pointer;
+    const { z } = this.lastPointerPosition;
+    const normFactor = 1 / Math.sqrt(x*x + y*y);
+
+    // this allows to rotate around current z axis when we're outside
+    // (but z coordinate seems to jumps to zero anyway, so another approach
+    // is needed)
+
+    // return new Vector3(
+    //   x * normFactor,
+    //   y * normFactor,
+    //   z
+    // );
+
+    // todo : return peripheral point (see above)
     return null;
   }
 
@@ -84,15 +99,23 @@ class SphereModelVersorControl extends EventEmitter {
       this.sphere.setRotationFromQuaternion(q);
       this.lastPointerPosition = newPosition;
       this.emit('move', newPosition);
+      this.emit('rotate', this.sphere.rotation);
     }
   }
 
   onEndDrag(updateDate) {
+    const now = Date.now();
+    /*
     if (updateDate) {
-      const now = Date.now();
+      //const now = Date.now();
       this.dt = (now - this.lastUpdateDate) * 0.001;
-      this.lastUpdateDate = now;
+      // this.lastUpdateDate = now;
+    } else {
+      this.dt = (now - this.lastDragDate) * 0.001;
     }
+    */
+    this.dt = (now - this.lastDragDate) * 0.001;
+    this.lastUpdateDate = now;
     this.angularSpeed = this.angle / this.dt; // we get the angular speed in rad.s-1
     this.emit('end');
   }
@@ -160,6 +183,7 @@ class SphereModelVersorControl extends EventEmitter {
         const q = new Quaternion().setFromAxisAngle(this.axis, deltaAngle);
         q.multiply(this.sphere.quaternion);
         this.sphere.setRotationFromQuaternion(q);
+        this.emit('rotate', this.sphere.rotation);
       } else {
         this.angularSpeed = 0;
       }

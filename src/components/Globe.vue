@@ -297,12 +297,21 @@ export default {
       // this.scene.add(this.clouds);
 
       const sphereTexture = new TextureLoader().load(
-        'src/assets/textures/planetpixelemporium/earthmap1k.jpg'
+        // 'src/assets/textures/planetpixelemporium/earthspec10k.jpg'
+        // 'src/assets/textures/blackwhiteworld-based/output_1.png'
+        'src/assets/textures/planetpixelemporium/earthmap10k.jpg'
+        // 'src/assets/textures/planetpixelemporium/moonmap4k.jpg'
         // 'src/assets/textures/planetpixelemporium/moonmap1k.jpg'
         // 'src/assets/textures/lroc_color_poles_1k.jpg'
       );
       const sphereBump = new TextureLoader().load(
-        'src/assets/textures/planetpixelemporium/earthbump1k.jpg'
+        'src/assets/textures/planetpixelemporium/earthbump10k.jpg'
+        // 'src/assets/textures/planetpixelemporium/moonbump4k.jpg'
+        // 'src/assets/textures/planetpixelemporium/moonbump1k.jpg'
+        // 'src/assets/textures/ldem_3_8bit.jpg'
+      );
+      const sphereSpec = new TextureLoader().load(
+        'src/assets/textures/planetpixelemporium/earthspec10k.jpg'
         // 'src/assets/textures/planetpixelemporium/moonbump1k.jpg'
         // 'src/assets/textures/ldem_3_8bit.jpg'
       );
@@ -310,10 +319,12 @@ export default {
       const sphereMat = new MeshPhongMaterial({
         map: sphereTexture,
         bumpMap: sphereBump,
-        bumpScale: 2,
+        bumpScale: 1,
+        specularMap: sphereSpec,
+        specular: 0x333333,
         side: FrontSide,
-        color: '#def', // for earth
-        // color: '#fff',
+        // color: '#def', // for earth
+        color: '#fff',
         wireframe: false,
       });
       this.sphere = new Mesh(sphereGeo, sphereMat);
@@ -325,7 +336,7 @@ export default {
       // this.sphere.add(zeMesh);
       points.forEach(p => {
         // console.log(p);
-        this.sphere.add(p);
+        // this.sphere.add(p);
       });
 
       zeMeshes.forEach(mesh => {
@@ -405,7 +416,10 @@ export default {
       });
       this.versorControl.addListener('end', () => {
         this.pointerDisplay.material.opacity = 0;
-      })
+      });
+      // this.versorControl.addListener('rotate', r => {
+      //   this.clouds.setRotationFromEuler(r);
+      // });
 
       // THIS :
       container.appendChild(this.renderer.domElement);      
@@ -415,7 +429,8 @@ export default {
 
       const now = Date.now();
       const dt = now - this.lastFrameDate || 0;
-      this.clouds.rotation.y += dt * -0.00001;
+      this.clouds.rotation.y += dt * -0.00003;
+      // this.clouds.setRotationFromEuler(this.clouds.rotation);
       this.lastFrameDate = now;
 
       // needed for inertia update, otherwise it is only updated via pointer events
@@ -428,11 +443,12 @@ export default {
 
 <style scoped>
 .glview {
-  width: 70vh;
-  height: 70vh;
-  /* height: 400px; */
-  display: flex;
-  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  /* width: 70vh; */
+  /* height: 70vh; */
+  /* display: flex; */
+  /* flex-direction: column; */
 }
 
 .glview > canvas {

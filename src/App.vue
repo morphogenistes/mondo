@@ -27,12 +27,18 @@ header {
   max-height: 100vh;
 }
 
+.wrapper {
+  user-select: none;
+  pointer-events: all;
+}
+
 .logo {
   display: block;
   margin: 0 auto 2rem;
 }
 
 nav {
+  /* pointer-events: none; */
   width: 100%;
   font-size: 12px;
   text-align: center;
